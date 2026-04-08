@@ -1,5 +1,5 @@
 // settingsStore.js
-// Settings persistence přes chrome.storage.local
+// Settings persistence — Chrome extension: chrome.storage.local | Fallback: localStorage
 
 var SETTINGS_KEY = 'inzoiCanvasSettings';
 
@@ -8,19 +8,34 @@ var SETTINGS_KEY = 'inzoiCanvasSettings';
  */
 function getSettings() {
   return new Promise(function(resolve) {
-    chrome.storage.local.get([SETTINGS_KEY], function(result) {
-      var raw = result[SETTINGS_KEY];
-      if (!raw) {
-        resolve({ automaticSave: false });
-        return;
-      }
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get([SETTINGS_KEY], function(result) {
+        var raw = result[SETTINGS_KEY];
+        if (!raw) {
+          resolve({ automaticSave: false });
+          return;
+        }
+        try {
+          var parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          resolve({ automaticSave: !!parsed.automaticSave });
+        } catch (e) {
+          resolve({ automaticSave: false });
+        }
+      });
+    } else {
+      // Fallback pro isolated context bez chrome.storage
       try {
-        var parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        resolve({ automaticSave: !!parsed.automaticSave });
+        var raw2 = localStorage.getItem(SETTINGS_KEY);
+        if (!raw2) {
+          resolve({ automaticSave: false });
+          return;
+        }
+        var parsed2 = JSON.parse(raw2);
+        resolve({ automaticSave: !!parsed2.automaticSave });
       } catch (e) {
         resolve({ automaticSave: false });
       }
-    });
+    }
   });
 }
 
@@ -28,23 +43,18 @@ function getSettings() {
  * @param {{automaticSave: boolean}} settings
  */
 function saveSettings(settings) {
-  chrome.storage.local.set(
-    (function() {
-      var obj = {};
-      obj[SETTINGS_KEY] = JSON.stringify({ automaticSave: !!settings.automaticSave });
-      return obj;
-    })()
-  );
-}
+  var data = { automaticSave: !!settings.automaticSave };
 
-/**
- * @param {{automaticSave: boolean}} settings
- * @returns {Promise<void>}
- */
-async function saveSettingsAsync(settings) {
-  return new Promise(function(resolve) {
-    var data = {};
-    data[SETTINGS_KEY] = JSON.stringify({ automaticSave: !!settings.automaticSave });
-    chrome.storage.local.set(data, resolve);
-  });
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    var obj = {};
+    obj[SETTINGS_KEY] = JSON.stringify(data);
+    chrome.storage.local.set(obj);
+  } else {
+    // Fallback
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('[InzoiCanvas] saveSettings fallback failed:', e);
+    }
+  }
 }

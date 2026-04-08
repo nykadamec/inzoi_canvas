@@ -78,6 +78,15 @@
     });
   }
 
+  function base64ToArrayBuffer(base64) {
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
   // ─── Download orchestration ─────────────────────────────────────────────────
   async function downloadCanvas(canvasId) {
     var auth = InzoiAuth.read();
@@ -108,18 +117,20 @@
       console.log('[InzoiCanvas] Total files:', urls.length);
 
       // Fetch přes background service worker (CORS bypass)
+      // Service worker vrací base64 (ArrayBuffer nejde přes structured clone)
       updatePanelProgress('Downloading files via proxy...', 20);
       var rawResults = await fetchBlobsViaProxy(urls, function(pct) {
         updatePanelProgress('Downloading... ' + pct + '%', 15 + Math.round(pct * 0.5));
       });
 
-      // Převést ArrayBuffer → Blob + najít meta.json
+      // Decode base64 → ArrayBuffer → Blob + najít meta.json
       var files = [];
       var topLevelMeta = null;
 
       for (var i = 0; i < rawResults.length; i++) {
         var item = rawResults[i];
-        var blob = new Blob([item.data]);
+        var buffer = base64ToArrayBuffer(item.base64);
+        var blob = new Blob([buffer]);
         files.push({ path: item.path, blob: blob });
 
         if (item.path === 'meta.json' && !topLevelMeta) {
@@ -131,10 +142,10 @@
       }
 
       var catResult = determineCategoryAndSubcategory(window.location.href, topLevelMeta);
-      var zipRootPath = catResult.category + '/' + catResult.subcategory + '/' + canvasId;
+      var zipRootPath = catResult.topCategory + '/' + catResult.category + '/' + catResult.subcategory + '/' + canvasId;
 
       console.log('[InzoiCanvas] ZIP root:', zipRootPath);
-      updatePanelProgress('Preparing ZIP in ' + catResult.category + '/' + catResult.subcategory + '...', 72);
+      updatePanelProgress('Preparing ZIP in ' + catResult.topCategory + '/' + catResult.category + '/' + catResult.subcategory + '...', 72);
 
       var zipBlob = await buildZip(files, zipRootPath, updatePanelProgress);
       var zipFileName = canvasId + '.zip';

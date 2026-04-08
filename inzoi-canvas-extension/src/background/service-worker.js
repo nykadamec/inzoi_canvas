@@ -1,20 +1,19 @@
 // service-worker.js
 // Background service worker — proxy pro CORS-free download blobů
-// Komunikuje s content scriptem přes chrome.runtime.sendMessage
+// ArrayBuffer → Base64 → content script → decode → Blob
 
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.type === 'FETCH_BLOBS') {
     handleFetchBlobs(msg.urls)
       .then(function(results) { sendResponse({ ok: true, results: results }); })
       .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
-    return true; // keep channel open for async response
+    return true;
   }
 });
 
 /**
- * Stáhne bloby přes background (CORS-free díky host_permissions)
  * @param {string[]} urls
- * @returns {Promise<Array<{url: string, path: string, data: ArrayBuffer}>>}
+ * @returns {Promise<Array<{url: string, path: string, base64: string}>>}
  */
 async function handleFetchBlobs(urls) {
   var results = [];
@@ -27,7 +26,11 @@ async function handleFetchBlobs(urls) {
     if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + path);
 
     var buffer = await res.arrayBuffer();
-    results.push({ url: url, path: path, data: buffer });
+
+    // ArrayBuffer nemůže přes chrome.runtime.sendMessage → převedeme na Base64
+    var base64 = arrayBufferToBase64(buffer);
+
+    results.push({ url: url, path: path, base64: base64 });
   }
 
   return results;
@@ -45,4 +48,13 @@ function extractPath(url) {
   } catch {
     return 'file.dat';
   }
+}
+
+function arrayBufferToBase64(buffer) {
+  var bytes = new Uint8Array(buffer);
+  var binary = '';
+  for (var i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
