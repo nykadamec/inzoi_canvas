@@ -1,0 +1,5 @@
+node_modules/
+backup/
+.DS_Store
+*.log
+auth.json
