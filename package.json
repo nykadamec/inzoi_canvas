@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "javascript-obfuscator": "^5.4.1",
     "playwright": "^1.59.1"
   },
   "dependencies": {
