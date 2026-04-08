@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Inzoi Canvas Downloader",
+  "version": "1.0.0",
+  "description": "Download Inzoi Canvas creations as ZIP — without running the game",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://canvas.playinzoi.com/*",
+    "https://cdn.canvas.playinzoi.com/*",
+    "https://api.canvas.playinzoi.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://canvas.playinzoi.com/*"],
+      "js": [
+        "vendor/jszip.min.js",
+        "src/core/authReader.js",
+        "src/core/rpcClient.js",
+        "src/core/canvasDownloader.js",
+        "src/core/zipBuilder.js",
+        "src/core/categoryResolver.js",
+        "src/storage/settingsStore.js",
+        "src/storage/directoryHandleStore.js",
+        "src/content/utils/urlMatcher.js",
+        "src/content/utils/routeWatcher.js",
+        "src/content/ui/fab.js",
+        "src/content/ui/panel.js",
+        "src/content/index.js"
+      ],
+      "css": ["src/content/ui/styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/jszip.min.js"],
+      "matches": ["https://canvas.playinzoi.com/*"]
+    }
+  ]
+}
