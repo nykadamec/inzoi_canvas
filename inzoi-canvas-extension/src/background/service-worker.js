@@ -1,0 +1,230 @@
+// service-worker.js
+// Background service worker — proxy pro CORS-free download blobů + mod info
+// ArrayBuffer → Base64 → content script → decode → Blob
+
+var CF_API_KEY = '$2a$10$dcQ6ahjTz05GGWgZbr7zeuCRycH/0yj1O5SIlLDlHVzGSXXJIM70C';
+var CF_BASE_URL = 'https://api.curseforge.com/v1';
+var CF_GAME_ID = '88849'; // inZOI game ID on CurseForge
+var CF_RATE_LIMIT_MS = 200;
+
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+  if (msg.type === 'FETCH_BLOBS') {
+    handleFetchBlobs(msg.urls)
+      .then(function(results) { sendResponse({ ok: true, results: results }); })
+      .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
+    return true;
+  }
+
+  if (msg.type === 'FETCH_MOD_INFO') {
+    handleFetchModInfo(msg.mods)
+      .then(function(results) { sendResponse({ ok: true, results: results }); })
+      .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
+    return true;
+  }
+
+  if (msg.type === 'SAVE_ZIP') {
+    handleSaveZip(msg.data, msg.filename, msg.saveAs)
+      .then(function(downloadId) { sendResponse({ ok: true, downloadId: downloadId }); })
+      .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
+    return true;
+  }
+
+  if (msg.type === 'CHECK_UPDATE') {
+    handleCheckUpdate()
+      .then(function(info) { sendResponse({ ok: true, result: info }); })
+      .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
+    return true;
+  }
+});
+
+// ─── Blob Fetching ────────────────────────────────────────────────────────────
+
+async function handleFetchBlobs(urls) {
+  var results = [];
+  for (var i = 0; i < urls.length; i++) {
+    var url = urls[i];
+    var path = extractPath(url);
+    var res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + path);
+    var buffer = await res.arrayBuffer();
+    var base64 = arrayBufferToBase64(buffer);
+    results.push({ url: url, path: path, base64: base64 });
+  }
+  return results;
+}
+
+// ─── CurseForge Mod Info ─────────────────────────────────────────────────────
+
+async function handleFetchModInfo(mods) {
+  var results = [];
+  for (var i = 0; i < mods.length; i++) {
+    var mod = mods[i];
+    var result = await fetchModDetails(mod.ugc_id, mod.author);
+    results.push(result);
+    if (i < mods.length - 1) await sleep(CF_RATE_LIMIT_MS);
+  }
+  return results;
+}
+
+/**
+ * Získá detail modu z CurseForge API
+ * gameId=88849 je inZOI na CurseForge
+ * @param {number} ugcId
+ * @param {string} author
+ * @returns {Promise}
+ */
+async function fetchModDetails(ugcId, author) {
+  var baseResult = {
+    ugc_id: ugcId,
+    author: author,
+    name: null,
+    summary: null,
+    modPageUrl: 'https://www.curseforge.com/inzoi/createzoi/' + ugcId,
+    slug: null,
+    status: 'error',
+  };
+
+  try {
+    // Info o modu — NUTNÝ parametr: gameId=88849
+    var modRes = await fetch(CF_BASE_URL + '/mods/' + ugcId + '?gameId=' + CF_GAME_ID, {
+      headers: { 'Accept': 'application/json', 'x-api-key': CF_API_KEY },
+    });
+
+    if (modRes.status === 404) {
+      baseResult.status = 'not_found';
+      return baseResult;
+    }
+    if (modRes.status === 403) {
+      baseResult.status = 'forbidden';
+      return baseResult;
+    }
+    if (modRes.status !== 200) {
+      baseResult.status = 'error';
+      return baseResult;
+    }
+
+    var modData = await modRes.json();
+    baseResult.name = (modData.data && modData.data.name) || null;
+    baseResult.summary = (modData.data && modData.data.summary) || null;
+    baseResult.slug = (modData.data && modData.data.slug) || null;
+
+    // Odkaz na mod page — /inzoi/createzoi/[slug]
+    if (modData.data && modData.data.links && modData.data.links.websiteUrl) {
+      baseResult.modPageUrl = modData.data.links.websiteUrl;
+    }
+
+    baseResult.status = 'ok';
+    return baseResult;
+
+  } catch (e) {
+    baseResult.status = 'error';
+    return baseResult;
+  }
+}
+
+function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+// ─── ZIP Save via chrome.downloads ───────────────────────────────────────────
+
+/**
+ * Zkontroluje jestli je nova verze.
+ * @returns {Promise<{hasUpdate: boolean, currentVersion: string, newVersion: string, downloadUrl: string}>}
+ */
+async function handleCheckUpdate() {
+  var UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/nykadamec/inzoi_canvas/main/updateManifest.json?ref=main';
+  var manifest = chrome.runtime.getManifest();
+  var currentVersion = manifest.version || '0.0.0';
+
+  try {
+    var resp = await fetch(UPDATE_MANIFEST_URL + '?t=' + Date.now());
+    if (!resp.ok) throw new Error('Failed to fetch update manifest');
+    var updateInfo = await resp.json();
+    var newVersion = updateInfo.version || '0.0.0';
+    var hasUpdate = compareVersions(newVersion, currentVersion) > 0;
+    return {
+      hasUpdate: hasUpdate,
+      currentVersion: currentVersion,
+      newVersion: newVersion,
+      downloadUrl: updateInfo.downloadUrl || null,
+    };
+  } catch (e) {
+    return {
+      hasUpdate: false,
+      currentVersion: currentVersion,
+      newVersion: null,
+      downloadUrl: null,
+    };
+  }
+}
+
+/**
+ * Porovna dve verze ve formatu "1.2.3".
+ * Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
+ */
+function compareVersions(v1, v2) {
+  var parts1 = v1.split('.').map(Number);
+  var parts2 = v2.split('.').map(Number);
+  for (var i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    var p1 = parts1[i] || 0;
+    var p2 = parts2[i] || 0;
+    if (p1 < p2) return -1;
+    if (p1 > p2) return 1;
+  }
+  return 0;
+}
+
+/**
+ * Uloží ZIP přes chrome.downloads.download()
+ * @param {string} base64Data — Base64 encoded ZIP data (bez data URL prefixu)
+ * @param {string} filename — suggested filename
+ * @param {boolean} saveAs — jestli zobrazit "Save As" dialog
+ * @returns {Promise<number>} downloadId
+ */
+async function handleSaveZip(base64Data, filename, saveAs) {
+  // V service workeru nemáme URL.createObjectURL — použijeme data URL pro malé soubory,
+  // nebo přímý blob upload přes fetch na blob URL vytvořenou přes chrome.runtime.getURL
+  // Nejjednodušší: vytvoříme data URL (funkční všude)
+  var dataUrl = 'data:application/zip;base64,' + base64Data;
+
+  return new Promise(function(resolve, reject) {
+    chrome.downloads.download({
+      url: dataUrl,
+      filename: filename,
+      saveAs: !!saveAs,
+      conflictAction: 'uniquify',
+    }, function(downloadId) {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(downloadId);
+    });
+  });
+}
+
+
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function extractPath(url) {
+  try {
+    var cleanUrl = url.split('?')[0];
+    var parts = cleanUrl.split('/');
+    var ugcIndex = parts.indexOf('ugc');
+    if (ugcIndex >= 0 && ugcIndex + 2 < parts.length) {
+      return parts.slice(ugcIndex + 2).join('/');
+    }
+    return parts[parts.length - 1] || 'file.dat';
+  } catch (e) {
+    return 'file.dat';
+  }
+}
+
+function arrayBufferToBase64(buffer) {
+  var bytes = new Uint8Array(buffer);
+  var binary = '';
+  for (var i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
