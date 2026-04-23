@@ -131,7 +131,7 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
  * @returns {Promise<{hasUpdate: boolean, currentVersion: string, newVersion: string, downloadUrl: string}>}
  */
 async function handleCheckUpdate() {
-  var UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/nykadamec/inzoi_canvas/main/updateManifest.json';
+  var UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/nykadamec/inzoi_canvas/main/updateManifest.json?ref=main';
   var manifest = chrome.runtime.getManifest();
   var currentVersion = manifest.version || '0.0.0';
 
