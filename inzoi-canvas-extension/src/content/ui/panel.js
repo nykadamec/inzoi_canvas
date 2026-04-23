@@ -14,18 +14,26 @@ function removePanel() {
 }
 
 /**
- * @param {{ isLoggedIn: boolean, canvasId: string|null, automaticSave: boolean }} opts
- * @param {Function} onDownload — click handler pro Download ZIP
- * @param {Function} onAutoSaveToggle — změna auto-save toggle
- * @param {Function} onResetFolder — reset folder handler
+ * @param {{ isLoggedIn: boolean, canvasId: string|null, automaticSave: boolean, modInfo: Array|null, authAccountId: string }} opts
+ * @param {Function} onDownload
+ * @param {Function} onAutoSaveToggle
+ * @param {Function} onResetFolder
+ * @param {Function} onModsExpand
  */
-function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder) {
+function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder, onModsExpand) {
   removePanel();
 
   var isLoggedIn = !!opts.isLoggedIn;
   var canvasId = opts.canvasId;
   var isCreationPage = !!canvasId;
   var autoSave = !!opts.automaticSave;
+  var modCount = 0;
+  var hasModSection = false;
+
+  if (isCreationPage && opts.modInfo && Array.isArray(opts.modInfo) && opts.modInfo.length > 0) {
+    modCount = opts.modInfo.length;
+    hasModSection = true;
+  }
 
   var panel = document.createElement('div');
   panel.id = 'inzoi-dl-panel';
@@ -64,7 +72,7 @@ function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder) {
     '<div style="padding:12px;border-radius:8px;margin-bottom:12px;background:' + statusBg + ';border:1px solid ' + statusBorder + ';">',
       '<div style="color:#888;font-size:11px;margin-bottom:4px;">Status</div>',
       '<div style="font-weight:600;">' + statusText + '</div>',
-      (isLoggedIn ? '<div style="font-size:10px;color:#888;margin-top:4px;font-family:monospace;">' + opts.authAccountId + '</div>' : ''),
+      (isLoggedIn ? '<div style="font-size:10px;color:#888;margin-top:4px;font-family:monospace;">' + (opts.authAccountId || '') + '</div>' : ''),
     '</div>',
 
     isCreationPage ? [
@@ -98,14 +106,20 @@ function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder) {
         '</div>',
         '<div id="inzoi-progress-text" style="font-size:10px;color:#888;text-align:right;margin-top:4px;"></div>',
       '</div>',
+
+      // Mods collapsible section
+      hasModSection ? [
+        '<div id="inzoi-mods-section" style="margin-top:12px;"></div>',
+      ].join('') : '',
+
     ].join('') : [
       '<div style="padding:12px;border-radius:8px;background:rgba(255,255,255,.05);text-align:center;color:#888;">',
         'Otevři detail creation stránky<br><span style="font-size:11px;">např. /creation/gal-XXXXXXXXX</span>',
       '</div>',
     ].join(''),
 
-    '<div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#666;text-align:center;">',
-      'JSZip 3.9.1 + File System Access API',
+    '<div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#666;text-align:center;" id="inzoi-version-footer">',
+      'Inzoi Canvas Downloader',
     '</div>',
   ].join('');
 
@@ -147,9 +161,42 @@ function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder) {
       onResetFolder && onResetFolder();
     };
 
-    btn.onclick = function() {
-      onDownload && onDownload();
+    btn.onclick = function(e) {
+      onDownload && onDownload(e);
     };
+  }
+
+  // Mods section — init collapsed
+  if (hasModSection) {
+    (function(count) {
+      var section = document.getElementById('inzoi-mods-section');
+
+      section.innerHTML = [
+        '<div id="inzoi-mods-header" style="',
+          'padding:12px;border-radius:8px;',
+          'background:rgba(255,255,255,.05);',
+          'border:1px solid rgba(255,255,255,.06);',
+          'cursor:pointer;user-select:none;',
+          'display:flex;justify-content:space-between;align-items:center;">',
+          '<span style="font-size:12px;font-weight:600;">🎯 Required mods (' + count + ')</span>',
+          '<span id="inzoi-mods-arrow" style="color:#888;font-size:12px;">▶</span>',
+        '</div>',
+        '<div id="inzoi-mods-body" style="display:none;"></div>',
+      ].join('');
+
+      document.getElementById('inzoi-mods-header').onclick = function() {
+        var body = document.getElementById('inzoi-mods-body');
+        var arrow = document.getElementById('inzoi-mods-arrow');
+        if (body.style.display === 'none') {
+          body.style.display = 'block';
+          arrow.textContent = '▼';
+          onModsExpand && onModsExpand();
+        } else {
+          body.style.display = 'none';
+          arrow.textContent = '▶';
+        }
+      };
+    })(modCount);
   }
 }
 

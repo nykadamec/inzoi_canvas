@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Inzoi Canvas Downloader",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Download Inzoi Canvas creations as ZIP — without running the game",
-  "permissions": ["storage"],
+  "permissions": ["storage", "downloads"],
   "host_permissions": [
     "https://canvas.playinzoi.com/*",
     "https://cdn.canvas.playinzoi.com/*",
-    "https://api.canvas.playinzoi.com/*"
+    "https://api.canvas.playinzoi.com/*",
+    "https://api.curseforge.com/*",
+    "https://raw.githubusercontent.com/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.js"
