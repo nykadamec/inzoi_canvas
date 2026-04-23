@@ -25,7 +25,6 @@
         "src/core/zipBuilder.js",
         "src/core/categoryResolver.js",
         "src/storage/settingsStore.js",
-        "src/storage/directoryHandleStore.js",
         "src/content/utils/urlMatcher.js",
         "src/content/utils/routeWatcher.js",
         "src/content/ui/fab.js",

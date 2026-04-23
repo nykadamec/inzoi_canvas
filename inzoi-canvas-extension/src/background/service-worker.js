@@ -1,5 +1,5 @@
 // service-worker.js
-// Background service worker — proxy pro CORS-free download blobů + mod info
+// Background service worker — CORS-free proxy for downloading blobs + mod info
 // ArrayBuffer → Base64 → content script → decode → Blob
 
 var CF_API_KEY = '$2a$10$dcQ6ahjTz05GGWgZbr7zeuCRycH/0yj1O5SIlLDlHVzGSXXJIM70C';
@@ -67,8 +67,8 @@ async function handleFetchModInfo(mods) {
 }
 
 /**
- * Získá detail modu z CurseForge API
- * gameId=88849 je inZOI na CurseForge
+ * Fetches mod detail from CurseForge API
+ * gameId=88849 is inZOI on CurseForge
  * @param {number} ugcId
  * @param {string} author
  * @returns {Promise}
@@ -127,7 +127,7 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 // ─── ZIP Save via chrome.downloads ───────────────────────────────────────────
 
 /**
- * Zkontroluje jestli je nova verze.
+ * Checks for a new version.
  * @returns {Promise<{hasUpdate: boolean, currentVersion: string, newVersion: string, downloadUrl: string}>}
  */
 async function handleCheckUpdate() {
@@ -158,7 +158,7 @@ async function handleCheckUpdate() {
 }
 
 /**
- * Porovna dve verze ve formatu "1.2.3".
+ * Compares two version strings in "1.2.3" format.
  * Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
  */
 function compareVersions(v1, v2) {
@@ -174,22 +174,35 @@ function compareVersions(v1, v2) {
 }
 
 /**
- * Uloží ZIP přes chrome.downloads.download()
- * @param {string} base64Data — Base64 encoded ZIP data (bez data URL prefixu)
+ * Saves ZIP via chrome.downloads.download()
+ * @param {string} base64Data — Base64 encoded ZIP data (no data URL prefix)
  * @param {string} filename — suggested filename
- * @param {boolean} saveAs — jestli zobrazit "Save As" dialog
+ * @param {boolean} saveAs — whether to show "Save As" dialog
  * @returns {Promise<number>} downloadId
  */
+/**
+ * Sanitizes a filename to prevent path traversal and invalid characters.
+ * Only allows safe filename characters, replaces path separators with dashes.
+ */
+function sanitizeFilename(name) {
+  if (!name || typeof name !== 'string') return 'canvas_download';
+  // Remove path traversal attempts and path separators
+  var sanitized = name.replace(/\.\./g, '').replace(/[\/\\]/g, '-');
+  // Remove any remaining control chars, null bytes, or other dangerous chars
+  sanitized = sanitized.replace(/[\x00-\x1f\x7f<>"|?*:]/g, '');
+  // Trim leading/trailing dots, spaces, dashes
+  sanitized = sanitized.replace(/^[\s.\-]+|[\s.\-]+$/g, '');
+  return sanitized || 'canvas_download';
+}
+
 async function handleSaveZip(base64Data, filename, saveAs) {
-  // V service workeru nemáme URL.createObjectURL — použijeme data URL pro malé soubory,
-  // nebo přímý blob upload přes fetch na blob URL vytvořenou přes chrome.runtime.getURL
-  // Nejjednodušší: vytvoříme data URL (funkční všude)
+  var safeName = sanitizeFilename(filename);
   var dataUrl = 'data:application/zip;base64,' + base64Data;
 
   return new Promise(function(resolve, reject) {
     chrome.downloads.download({
       url: dataUrl,
-      filename: filename,
+      filename: safeName,
       saveAs: !!saveAs,
       conflictAction: 'uniquify',
     }, function(downloadId) {

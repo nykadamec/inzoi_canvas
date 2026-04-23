@@ -1,10 +1,11 @@
 // panel.js
-// Panel UI — vytvoření, aktualizace, progress, toast
+// Panel UI — creation, update, progress, toast
 
 var panelInstance = null;
+var tooltipEl = null;
 
 /**
- * Odstraní panel z DOM
+ * Remove panel from DOM
  */
 function removePanel() {
   if (panelInstance) {
@@ -14,31 +15,72 @@ function removePanel() {
 }
 
 /**
- * @param {{ isLoggedIn: boolean, canvasId: string|null, automaticSave: boolean, modInfo: Array|null, authAccountId: string }} opts
+ * Remove custom tooltip from DOM
+ */
+function removeTooltip() {
+  if (tooltipEl) {
+    tooltipEl.remove();
+    tooltipEl = null;
+  }
+}
+
+/**
+ * Show custom tooltip anchored to cursor
+ * @param {string} text
+ * @param {MouseEvent} e
+ */
+function showTooltip(text, e) {
+  removeTooltip();
+  tooltipEl = document.createElement('div');
+  tooltipEl.id = 'inzoi-tooltip';
+  tooltipEl.textContent = text;
+  document.body.appendChild(tooltipEl);
+
+  var x = e.clientX;
+  var y = e.clientY;
+  var tw = tooltipEl.offsetWidth;
+  var th = tooltipEl.offsetHeight;
+
+  if (y + th + 16 > window.innerHeight) {
+    y = y - th - 12;
+  } else {
+    y = y + 14;
+  }
+  if (x + tw + 16 > window.innerWidth) {
+    x = window.innerWidth - tw - 16;
+  }
+
+  tooltipEl.style.left = x + 'px';
+  tooltipEl.style.top = y + 'px';
+  requestAnimationFrame(function() {
+    if (tooltipEl) tooltipEl.classList.add('visible');
+  });
+}
+
+/**
+ * Hide custom tooltip
+ */
+function hideTooltip() {
+  removeTooltip();
+}
+
+/**
+ * @param {{ isLoggedIn: boolean, canvasId: string|null, modInfo: Array|null, authAccountId: string }} opts
  * @param {Function} onDownload
- * @param {Function} onAutoSaveToggle
- * @param {Function} onResetFolder
  * @param {Function} onModsExpand
  */
-function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder, onModsExpand) {
+function createPanel(opts, onDownload, onModsExpand) {
   removePanel();
 
   var isLoggedIn = !!opts.isLoggedIn;
   var canvasId = opts.canvasId;
   var isCreationPage = !!canvasId;
-  var autoSave = !!opts.automaticSave;
-  var modCount = 0;
-  var hasModSection = false;
-
-  if (isCreationPage && opts.modInfo && Array.isArray(opts.modInfo) && opts.modInfo.length > 0) {
-    modCount = opts.modInfo.length;
-    hasModSection = true;
-  }
 
   var panel = document.createElement('div');
   panel.id = 'inzoi-dl-panel';
   panel.style.cssText = [
     'position:fixed',
+    'left:auto',
     'top:60px',
     'right:20px',
     'z-index:99999',
@@ -47,83 +89,98 @@ function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder, onModsEx
     'padding:20px',
     'border-radius:16px',
     'min-width:340px',
-    'max-width:430px',
+    'width:380px',
     'box-shadow:0 10px 32px rgba(0,0,0,.5)',
     'border:1px solid rgba(255,255,255,.08)',
     'font:13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
   ].join(';');
 
-  var statusBg = isLoggedIn
-    ? 'rgba(0,200,100,.15)'
-    : 'rgba(255,80,80,.15)';
-  var statusBorder = isLoggedIn
-    ? 'rgba(0,200,100,.3)'
-    : 'rgba(255,80,80,.3)';
-  var statusText = isLoggedIn
-    ? '✅ Logged in'
-    : '❌ Not logged in';
+  // Account ID — short version
+  var shortAccountId = opts.authAccountId
+    ? '…' + opts.authAccountId.slice(-6)
+    : '';
 
   panel.innerHTML = [
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">',
-      '<h3 style="margin:0;color:#e94560;font-size:16px;">📦 Downloader</h3>',
-      '<button id="inzoi-close" style="background:none;border:none;color:#777;font-size:22px;cursor:pointer;">×</button>',
-    '</div>',
-
-    '<div style="padding:12px;border-radius:8px;margin-bottom:12px;background:' + statusBg + ';border:1px solid ' + statusBorder + ';">',
-      '<div style="color:#888;font-size:11px;margin-bottom:4px;">Status</div>',
-      '<div style="font-weight:600;">' + statusText + '</div>',
-      (isLoggedIn ? '<div style="font-size:10px;color:#888;margin-top:4px;font-family:monospace;">' + (opts.authAccountId || '') + '</div>' : ''),
+    // Header
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">',
+      '<span style="font-size:14px;font-weight:700;color:#e94560;letter-spacing:.3px;">📦 Downloader</span>',
+      '<div style="display:flex;align-items:center;gap:6px;">',
+        '<span style="font-size:10px;font-weight:500;color:' + (isLoggedIn ? '#00c864' : '#ff5050') + ';">' + (isLoggedIn ? 'Logged in' : 'Not logged in') + '</span>',
+        '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + (isLoggedIn ? '#00c864' : '#ff5050') + ';flex-shrink:0;"></span>',
+        (isLoggedIn && shortAccountId ? '<span id="inzoi-account-id" style="font-size:9px;color:#555;font-family:monospace;cursor:pointer;" title="Click to copy">' + shortAccountId + '</span>' : ''),
+        '<button id="inzoi-close" style="background:none;border:none;color:#555;font-size:18px;cursor:pointer;padding:0;line-height:1;margin-left:4px;">×</button>',
+      '</div>',
     '</div>',
 
     isCreationPage ? [
-      '<div style="padding:12px;border-radius:8px;margin-bottom:12px;background:rgba(255,255,255,.05);">',
-        '<div style="color:#888;font-size:11px;margin-bottom:4px;">Canvas ID</div>',
-        '<div style="font-family:monospace;font-size:12px;word-break:break-all;color:#60a5fa;">' + canvasId + '</div>',
+
+      // Canvas name
+      '<div style="margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:6px;border-left:2px solid #e94560;">',
+        '<div style="font-size:10px;color:#666;margin-bottom:2px;">Name</div>',
+        '<div id="inzoi-canvas-name" style="font-size:11px;font-weight:600;color:#eee;word-break:break-word;line-height:1.3;">Loading...</div>',
       '</div>',
 
-      '<div style="padding:12px;border-radius:8px;margin-bottom:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);">',
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">',
-          '<div>',
-            '<div style="font-size:12px;font-weight:600;">Automatic save, without ask</div>',
-            '<div style="font-size:11px;color:#888;margin-top:2px;">Saves to remembered folder directly.</div>',
-          '</div>',
-          '<label style="display:flex;align-items:center;cursor:pointer;">',
-            '<input id="inzoi-auto-save-toggle" type="checkbox"' + (autoSave ? ' checked' : '') + ' style="width:18px;height:18px;cursor:pointer;" />',
-          '</label>',
+      // Canvas ID
+      '<div style="margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:6px;border-left:2px solid #60a5fa;">',
+        '<div style="font-size:10px;color:#666;margin-bottom:2px;">Canvas</div>',
+        '<div id="inzoi-canvas-id" style="font-size:11px;font-family:monospace;color:#60a5fa;word-break:break-all;">' + canvasId + '</div>',
+      '</div>',
+
+      // Mods section (collapsed by default)
+      '<div id="inzoi-mods-section" style="margin-top:14px;margin-bottom:12px;">',
+        '<div id="inzoi-mods-header" style="',
+          'padding:12px;border-radius:8px;',
+          'background:rgba(255,255,255,.05);',
+          'border:1px solid rgba(255,255,255,.06);',
+          'cursor:pointer;user-select:none;',
+          'display:flex;justify-content:space-between;align-items:center;',
+          'transition:background .2s ease;',
+          '">',
+          '<span id="inzoi-mods-count" style="font-size:12px;font-weight:600;">🎯 Required mods</span>',
+          '<span id="inzoi-mods-arrow" style="color:#888;font-size:12px;transition:transform .25s ease;">▶</span>',
         '</div>',
-        '<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;">',
-          '<div id="inzoi-save-mode-label" style="font-size:11px;color:#888;">' + (autoSave ? 'Mode: auto-save to remembered folder' : 'Mode: ask where to save each ZIP') + '</div>',
-          '<button id="inzoi-reset-folder-btn" style="padding:6px 10px;background:transparent;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#bbb;font-size:11px;cursor:pointer;">Reset folder</button>',
+        '<div id="inzoi-mods-body" style="',
+          'overflow:hidden;',
+          'transition:opacity .25s ease, max-height .3s ease;',
+          'opacity:0;',
+          'max-height:0;',
+          'display:block;',
+          '">',
+          '<div id="inzoi-mods-table-wrapper" style="padding-top:8px;"></div>',
         '</div>',
       '</div>',
 
-      '<button id="inzoi-dl-btn" style="width:100%;padding:14px 20px;background:linear-gradient(135deg,#e94560,#c73659);border:none;border-radius:10px;color:white;cursor:pointer;font-weight:600;font-size:14px;">📦 Download ZIP</button>',
+      // Download button
+      '<button id="inzoi-dl-btn" style="width:100%;padding:16px 20px;background:linear-gradient(135deg,#e94560,#c73659);border:none;border-radius:12px;color:white;cursor:pointer;font-weight:700;font-size:15px;letter-spacing:.3px;margin-bottom:8px;box-shadow:0 4px 14px rgba(233,69,96,.35);">📦 Download ZIP</button>',
 
-      '<div id="inzoi-progress-container" style="margin-top:12px;display:none;">',
-        '<div id="inzoi-status" style="font-size:12px;margin-bottom:8px;"></div>',
-        '<div style="height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden;">',
-          '<div id="inzoi-progress-fill" style="height:100%;background:linear-gradient(90deg,#e94560,#60a5fa);width:0%;transition:width .25s;"></div>',
-        '</div>',
-        '<div id="inzoi-progress-text" style="font-size:10px;color:#888;text-align:right;margin-top:4px;"></div>',
+      // Save location
+      '<div style="margin-bottom:12px;font-size:10px;color:#555;padding:0 2px;text-align:center;">',
+        'Saves to your browser\'s default download folder',
       '</div>',
 
-      // Mods collapsible section
-      hasModSection ? [
-        '<div id="inzoi-mods-section" style="margin-top:12px;"></div>',
-      ].join('') : '',
+      // Progress
+      '<div id="inzoi-progress-container" style="display:none;margin-bottom:12px;">',
+        '<div id="inzoi-status" style="font-size:12px;margin-bottom:6px;color:#aaa;"></div>',
+        '<div style="height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;">',
+          '<div id="inzoi-progress-fill" style="height:100%;background:linear-gradient(90deg,#e94560,#60a5fa);width:0%;transition:width .25s;border-radius:3px;"></div>',
+        '</div>',
+        '<div id="inzoi-progress-text" style="font-size:10px;color:#666;text-align:right;margin-top:3px;"></div>',
+      '</div>',
 
     ].join('') : [
-      '<div style="padding:12px;border-radius:8px;background:rgba(255,255,255,.05);text-align:center;color:#888;">',
-        'Otevři detail creation stránky<br><span style="font-size:11px;">např. /creation/gal-XXXXXXXXX</span>',
+
+      '<div style="padding:20px;text-align:center;color:#666;font-size:12px;border-radius:8px;background:rgba(255,255,255,.04);">',
+        'Open a creation page to download<br>',
+        '<span style="font-size:11px;color:#555;">e.g. /creation/gal-XXXXXXXXX</span>',
       '</div>',
+
     ].join(''),
 
-    '<div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#666;text-align:center;" id="inzoi-version-footer">',
-      'Inzoi Canvas Downloader',
-    '</div>',
+    // Footer
+    '<div id="inzoi-version-footer" style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);font-size:11px;color:#555;text-align:center;"></div>',
   ].join('');
 
-  // Event guard — zabránit propagate na host app
+  // Event guard
   ['pointerdown', 'pointerup', 'mousedown', 'mouseup'].forEach(function(type) {
     panel.addEventListener(type, function(e) {
       e.stopPropagation();
@@ -134,7 +191,7 @@ function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder, onModsEx
   document.body.appendChild(panel);
   panelInstance = panel;
 
-  // Zavřít tlačítko
+  // Close button
   document.getElementById('inzoi-close').onclick = function(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -142,77 +199,89 @@ function createPanel(opts, onDownload, onAutoSaveToggle, onResetFolder, onModsEx
     removePanel();
   };
 
+  // Account ID — click to copy, hover tooltip
+  var accountIdEl = document.getElementById('inzoi-account-id');
+  if (accountIdEl) {
+    accountIdEl.addEventListener('mouseenter', function(e) {
+      showTooltip('Click to copy: ' + opts.authAccountId, e);
+    });
+    accountIdEl.addEventListener('mousemove', function(e) {
+      if (tooltipEl) {
+        var x = e.clientX;
+        var y = e.clientY;
+        var tw = tooltipEl.offsetWidth;
+        var th = tooltipEl.offsetHeight;
+        if (y + th + 16 > window.innerHeight) y = y - th - 12;
+        else y = y + 14;
+        if (x + tw + 16 > window.innerWidth) x = window.innerWidth - tw - 16;
+        tooltipEl.style.left = x + 'px';
+        tooltipEl.style.top = y + 'px';
+      }
+    });
+    accountIdEl.addEventListener('mouseleave', function() { hideTooltip(); });
+    accountIdEl.addEventListener('click', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      navigator.clipboard.writeText(opts.authAccountId).then(function() {
+        showTooltip('Copied!', e);
+        setTimeout(function() { hideTooltip(); }, 1500);
+      }).catch(function() {
+        showTooltip('Copy failed', e);
+      });
+    });
+  }
+
+  // Download button
   if (isCreationPage) {
     var btn = document.getElementById('inzoi-dl-btn');
-    var progressContainer = document.getElementById('inzoi-progress-container');
-    var autoToggle = document.getElementById('inzoi-auto-save-toggle');
-    var modeLabel = document.getElementById('inzoi-save-mode-label');
-    var resetFolderBtn = document.getElementById('inzoi-reset-folder-btn');
+    if (btn) {
+      btn.onclick = function(e) { onDownload && onDownload(e); };
+    }
+  }
 
-    autoToggle.onchange = function() {
-      onAutoSaveToggle && onAutoSaveToggle(autoToggle.checked);
-      modeLabel.textContent = autoToggle.checked
-        ? 'Mode: auto-save to remembered folder'
-        : 'Mode: ask where to save each ZIP';
-      showToast(autoToggle.checked ? 'Automatic save enabled' : 'Automatic save disabled', true);
-    };
+  // Mods section init — structure already in panel.innerHTML, just wire up click
+  var modSection = document.getElementById('inzoi-mods-section');
+  if (modSection) {
+    var existingBody = document.getElementById('inzoi-mods-body');
+    if (existingBody) {
+      // Ensure body starts hidden
+      existingBody.style.maxHeight = '0px';
+      existingBody.style.opacity = '0';
+    }
 
-    resetFolderBtn.onclick = function() {
-      onResetFolder && onResetFolder();
-    };
-
-    btn.onclick = function(e) {
-      onDownload && onDownload(e);
+    document.getElementById('inzoi-mods-header').onclick = function() {
+      var body = document.getElementById('inzoi-mods-body');
+      var arrow = document.getElementById('inzoi-mods-arrow');
+      if (!body) return;
+      var isClosed = body.style.maxHeight === '0px' || body.style.maxHeight === '';
+      if (isClosed) {
+        body.style.maxHeight = '400px';
+        body.style.opacity = '1';
+        if (arrow) { arrow.style.transform = 'rotate(180deg)'; arrow.textContent = '▼'; }
+        onModsExpand && onModsExpand();
+      } else {
+        body.style.maxHeight = '0px';
+        body.style.opacity = '0';
+        if (arrow) { arrow.style.transform = 'rotate(0deg)'; arrow.textContent = '▶'; }
+      }
     };
   }
 
-  // Mods section — init collapsed
-  if (hasModSection) {
-    (function(count) {
-      var section = document.getElementById('inzoi-mods-section');
-
-      section.innerHTML = [
-        '<div id="inzoi-mods-header" style="',
-          'padding:12px;border-radius:8px;',
-          'background:rgba(255,255,255,.05);',
-          'border:1px solid rgba(255,255,255,.06);',
-          'cursor:pointer;user-select:none;',
-          'display:flex;justify-content:space-between;align-items:center;">',
-          '<span style="font-size:12px;font-weight:600;">🎯 Required mods (' + count + ')</span>',
-          '<span id="inzoi-mods-arrow" style="color:#888;font-size:12px;">▶</span>',
-        '</div>',
-        '<div id="inzoi-mods-body" style="display:none;"></div>',
-      ].join('');
-
-      document.getElementById('inzoi-mods-header').onclick = function() {
-        var body = document.getElementById('inzoi-mods-body');
-        var arrow = document.getElementById('inzoi-mods-arrow');
-        if (body.style.display === 'none') {
-          body.style.display = 'block';
-          arrow.textContent = '▼';
-          onModsExpand && onModsExpand();
-        } else {
-          body.style.display = 'none';
-          arrow.textContent = '▶';
-        }
-      };
-    })(modCount);
-  }
-
-  // Update version footer
+  // Version footer
   var footerEl = document.getElementById('inzoi-version-footer');
   if (footerEl) {
     try {
       var mf = chrome.runtime.getManifest();
-      footerEl.textContent = 'Canvy Zip v' + (mf.version || '0.1.0');
+      var buildDate = '2026-04-23';
+      footerEl.textContent = '\u2713 Latest version \u00b7 ' + buildDate;
     } catch (e) {
-      footerEl.textContent = 'version 0.1.0';
+      footerEl.textContent = 'version 0.1.0 \u00b7 2026-04-23';
     }
   }
 }
 
 /**
- * Aktualizuje progress bar
+ * Update progress bar
  * @param {string} status
  * @param {number} pct — 0–100
  */
@@ -229,7 +298,7 @@ function updatePanelProgress(status, pct) {
 }
 
 /**
- * Odemkne download tlačítko po dokončení / chybě
+ * Re-enable download button after completion / error
  */
 function resetDownloadButton(btn) {
   if (!btn) return;
@@ -239,7 +308,7 @@ function resetDownloadButton(btn) {
 }
 
 /**
- * Zobrazí toast zprávu
+ * Show toast message
  * @param {string} message
  * @param {boolean} ok
  */
@@ -262,5 +331,5 @@ function showToast(message, ok) {
   ].join(';');
   el.textContent = message;
   document.body.appendChild(el);
-  setTimeout(function() { el.remove(); }, 3500);
+  setTimeout(function() { el.remove(); }, 5000);
 }

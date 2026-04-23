@@ -79,7 +79,136 @@
     return bytes.buffer;
   }
 
-  // ─── Mods state ───────────────────────────────────────────────────────────
+  /**
+ * Scrapes the canvas name from the page.
+ * Looks for: <p class="break-words text-[2.5rem] font-bold">...</p>
+ * @returns {string|null}
+ */
+function scrapeCanvasName() {
+  try {
+    // Try the known class pattern first
+    var els = document.querySelectorAll('p.break-words.text-\\[2\\.5rem\\].font-bold');
+    if (els && els.length > 0) {
+      return els[0].textContent.trim() || null;
+    }
+    // Fallback: any p with text-[2.5rem]
+    var allP = document.querySelectorAll('p');
+    for (var i = 0; i < allP.length; i++) {
+      var style = window.getComputedStyle(allP[i]);
+      if (style.fontSize === '2.5rem' && allP[i].textContent.trim()) {
+        return allP[i].textContent.trim();
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
+ * Scrapes required mods directly from the page DOM.
+ * Looks for the "Mod Info" section on the creation page.
+ * @returns {Array<{name: string, author: string, modPageUrl: string}|null}
+ */
+function scrapeModsFromPage() {
+  try {
+    // Find the Mod Info container
+    var allDivs = document.querySelectorAll('div');
+    var modInfoContainer = null;
+    for (var i = 0; i < allDivs.length; i++) {
+      var el = allDivs[i];
+      var children = el.querySelectorAll('*');
+      var hasModInfo = false;
+      var hasIncludes = false;
+      for (var j = 0; j < children.length; j++) {
+        if (children[j].textContent && children[j].textContent.includes('Mod Info')) hasModInfo = true;
+        if (children[j].textContent && children[j].textContent.includes('Includes')) hasIncludes = true;
+      }
+      if (hasModInfo && hasIncludes) {
+        modInfoContainer = el;
+        break;
+      }
+    }
+    if (!modInfoContainer) return null;
+
+    var mods = [];
+    // Find all mod entries — they have an img + bold text + author button
+    var modEntries = modInfoContainer.querySelectorAll('div.group');
+    for (var k = 0; k < modEntries.length; k++) {
+      var entry = modEntries[k];
+      var nameEl = entry.querySelector('p.text-xs.font-bold');
+      var authorEl = entry.querySelector('button.author-btn');
+      if (nameEl) {
+        var name = nameEl.textContent.trim();
+        var author = authorEl ? authorEl.textContent.trim() : '—';
+        // Build CurseForge URL from mod name
+        var slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+        var modPageUrl = 'https://www.curseforge.com/inzoi/createzoi/' + slug;
+        mods.push({ name: name, author: author, modPageUrl: modPageUrl, status: 'ok' });
+      }
+    }
+    return mods.length > 0 ? mods : null;
+  } catch (e) { return null; }
+}
+
+/**
+ * Update canvas name in panel — called after panel opens
+ */
+function updateCanvasNameInPanel() {
+  var el = document.getElementById('inzoi-canvas-name');
+  if (!el) return;
+  var name = scrapeCanvasName();
+  if (name) {
+    el.textContent = name;
+  } else {
+    el.textContent = '—';
+    el.style.color = '#666';
+  }
+}
+
+/**
+ * Update mods section in panel from scraped page data — auto-expands
+ */
+function updateModsInPanelFromPage() {
+  var section = document.getElementById('inzoi-mods-section');
+  var body = document.getElementById('inzoi-mods-body');
+  var countEl = document.getElementById('inzoi-mods-count');
+  var arrowEl = document.getElementById('inzoi-mods-arrow');
+  if (!section || !body) return;
+
+  var mods = scrapeModsFromPage();
+
+  // Always update count even if no mods found
+  if (countEl) {
+    countEl.textContent = '🎯 Required mods' + (mods && mods.length > 0 ? ' (' + mods.length + ')' : '');
+  }
+
+  if (!mods || mods.length === 0) {
+    body.style.display = 'none';
+    arrowEl.textContent = '▶';
+    return;
+  }
+
+  modsCache._rawModInfo = mods.map(function(m) { return { ugc_id: null, author: m.author }; });
+
+  var rows = mods.map(function(m, i) {
+    var short = m.name.length > 26 ? m.name.substring(0, 24) + '…' : m.name;
+    var dlUrl = m.modPageUrl || '#';
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,.05);">' +
+      '<td style="padding:6px 8px;color:#888;font-size:11px;">' + (i+1) + '</td>' +
+      '<td style="padding:6px 8px;font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + m.name + '">' + short + '</td>' +
+      '<td style="padding:6px 8px;color:#888;font-size:11px;">' + (m.author || '—') + '</td>' +
+      '<td style="padding:6px 8px;text-align:center;"><a href="' + dlUrl + '" target="_blank" style="color:#60a5fa;font-size:12px;text-decoration:none;" title="Open on CurseForge">🌐</a></td></tr>';
+  }).join('');
+
+  body.innerHTML = '<table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:8px;">' +
+    '<tr style="color:#888;border-bottom:1px solid rgba(255,255,255,.1);">' +
+    '<th style="padding:4px 8px;text-align:left;font-size:11px;">#</th>' +
+    '<th style="padding:4px 8px;text-align:left;font-size:11px;">Name</th>' +
+    '<th style="padding:4px 8px;text-align:left;font-size:11px;">Author</th>' +
+    '<th style="padding:4px 8px;text-align:center;font-size:11px;">Status</th>' +
+    '</tr>' + rows + '</table>';
+}
+
+// ─── Mods state ───────────────────────────────────────────────────────────
   var modsCache = { _rawModInfo: null };
 
   function setModsCache(cid, data) { modsCache[cid] = data; }
@@ -123,6 +252,13 @@
   async function handleModsExpand(canvasId) {
     var body = document.getElementById('inzoi-mods-body');
     if (!body) return;
+
+    // If we already have page-scraped data (from openPanel), use it directly — skip API
+    if (modsCache._rawModInfo && modsCache._rawModInfo.length > 0 && modsCache._rawModInfo[0].ugc_id === null) {
+      // Page-scraped data — already rendered by updateModsInPanelFromPage(), just show it
+      return;
+    }
+
     var cached = getModsCache(canvasId);
     if (cached) { renderModsTable(cached); return; }
     body.innerHTML = '<div style="padding:12px;text-align:center;color:#888;font-size:12px;">⏳ Loading mod info...</div>';
@@ -173,7 +309,7 @@
   // ─── Download orchestration ─────────────────────────────────────────────────
   async function downloadCanvas(canvasId) {
     var auth = InzoiAuth.read();
-    if (!auth || !auth.token) { showToast('Nejsi přihlášený na canvas.playinzoi.com', false); return; }
+    if (!auth || !auth.token) { showToast('Not logged in at canvas.playinzoi.com', false); return; }
 
     updatePanelProgress('Connecting...', 0);
     var ws = new InzoiRPC();
@@ -186,7 +322,7 @@
       updatePanelProgress('Fetching file list...', 15);
       var result = await ws.getDownloadUrls(canvasId);
       var urls = [].concat(result.DownloadUrls || [], result.DownloadThumbnailUrls || []);
-      if (!urls.length) { showToast('Canvas nevrátil žádné soubory', false); return; }
+      if (!urls.length) { showToast('Canvas returned no files', false); return; }
       console.log('[InzoiCanvas] Total files:', urls.length);
 
       updatePanelProgress('Downloading files via proxy...', 20);
@@ -208,24 +344,24 @@
       console.log('[InzoiCanvas] ZIP root:', zipRootPath);
       updatePanelProgress('Preparing ZIP...', 72);
 
-      var zipBlob = await buildZip(files, zipRootPath, updatePanelProgress);
+      var zipBlob;
+      try {
+        zipBlob = await buildZip(files, zipRootPath, updatePanelProgress);
+      } catch (zipErr) {
+        console.error('[InzoiCanvas] ZIP generation failed:', zipErr);
+        showToast('Failed to create ZIP: ' + (zipErr.message || 'unknown error'), false);
+        updatePanelProgress('Error: ZIP generation failed', 0);
+        ws.close();
+        return;
+      }
       var zipFileName = canvasId + '.zip';
       updatePanelProgress('Saving ZIP...', 99);
-      var settings = await getSettings();
-
-      if (settings.automaticSave) {
-        await saveZipViaBackground(zipBlob, zipFileName, false);
-        updatePanelProgress('ZIP auto-saved: ' + zipFileName, 100);
-        showToast('ZIP auto-saved: ' + zipFileName, true);
-      } else {
-        await saveZipViaBackground(zipBlob, zipFileName, true);
-        updatePanelProgress('ZIP saved: ' + zipFileName, 100);
-        showToast('ZIP uložen: ' + zipFileName, true);
-      }
+      await saveZipViaBackground(zipBlob, zipFileName, true);
+      updatePanelProgress('ZIP saved: ' + zipFileName, 100);
+      showToast('ZIP saved: ' + zipFileName, true);
       console.log('[InzoiCanvas] ZIP saved OK');
 
-      // Inject mods section AFTER download (meta.json is already downloaded)
-      injectModsSection(topLevelMeta ? (topLevelMeta.ModInformation || null) : null, canvasId);
+      // Mods are already loaded from page DOM when panel opened — no need to re-inject after download
 
     } catch (err) {
       console.error('[InzoiCanvas] Download error:', err);
@@ -259,7 +395,6 @@
       createPanel({
         isLoggedIn: !!auth.token,
         canvasId: canvasId,
-        automaticSave: settings.automaticSave,
         authAccountId: auth.accountId || '',
       }, function onDownload() {
         var btn = document.getElementById('inzoi-dl-btn');
@@ -269,8 +404,7 @@
         downloadCanvas(canvasId).then(function() {
           var btn2 = document.getElementById('inzoi-dl-btn');
           if (btn2) {
-            var t = document.getElementById('inzoi-auto-save-toggle');
-            btn2.textContent = t && t.checked ? '✅ ZIP Auto-Saved' : '✅ ZIP Saved';
+            btn2.textContent = '✅ ZIP Saved';
             btn2.style.background = 'linear-gradient(135deg,#00c864,#00a854)';
           }
         }).catch(function() {
@@ -281,11 +415,11 @@
             setTimeout(function() { resetDownloadButton(btn2); }, 3000);
           }
         });
-      }, function onAutoSaveToggle(checked) { saveSettings({ automaticSave: checked }); },
-        function onResetFolder() {
-          clearRememberedDirectoryHandle().then(function() { showToast('Remembered folder reset', true); })
-            .catch(function() { showToast('Failed to reset folder', false); });
-        });
+      });
+      // Scrape canvas name and mods from page immediately
+      updateCanvasNameInPanel();
+      // Small delay to let dynamic content settle
+      setTimeout(function() { updateModsInPanelFromPage(); }, 300);
     }).catch(function() {});
   }
 
@@ -308,9 +442,10 @@
       if (info.hasUpdate) {
         var el = document.getElementById('inzoi-version-footer');
         if (el) {
-          el.textContent = 'Inzoi Canvas Downloader v' + info.currentVersion + ' \u2192 Update v' + info.newVersion + ' available!';
+          el.textContent = '\u21bb Install New Update';
           el.style.color = '#60a5fa';
           el.style.cursor = 'pointer';
+          el.style.fontWeight = '600';
           el.title = 'Click to download update';
           el.onclick = function() {
             if (info.downloadUrl) window.open(info.downloadUrl, '_blank');
