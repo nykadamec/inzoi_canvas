@@ -2,7 +2,14 @@
 // Background service worker — CORS-free proxy for downloading blobs + mod info
 // ArrayBuffer → Base64 → content script → decode → Blob
 
-importScripts('updater.js');
+console.log('[InzoiCanvas:SW] service worker loaded at', new Date().toISOString());
+
+try {
+  importScripts('updater.js');
+  console.log('[InzoiCanvas:SW] updater.js loaded OK, InzoiUpdater:', typeof self.InzoiUpdater);
+} catch (e) {
+  console.error('[InzoiCanvas:SW] importScripts FAILED:', e);
+}
 
 var CF_API_KEY = '$2a$10$dcQ6ahjTz05GGWgZbr7zeuCRycH/0yj1O5SIlLDlHVzGSXXJIM70C';
 var CF_BASE_URL = 'https://api.curseforge.com/v1';
@@ -32,6 +39,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
 
   if (msg.type === 'CHECK_UPDATE') {
+    console.log('[InzoiCanvas:SW] CHECK_UPDATE received, InzoiUpdater loaded:', !!(self.InzoiUpdater && self.InzoiUpdater.handleCheckUpdate));
     try {
       if (!self.InzoiUpdater || typeof self.InzoiUpdater.handleCheckUpdate !== 'function') {
         console.error('[InzoiCanvas:SW] InzoiUpdater not loaded (importScripts failed?)');
@@ -39,8 +47,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         return true;
       }
       self.InzoiUpdater.handleCheckUpdate(!!msg.force)
-        .then(function(info) { sendResponse({ ok: true, result: info }); })
-        .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
+        .then(function(info) { console.log('[InzoiCanvas:SW] CHECK_UPDATE result:', info); sendResponse({ ok: true, result: info }); })
+        .catch(function(err) { console.error('[InzoiCanvas:SW] CHECK_UPDATE error:', err); sendResponse({ ok: false, error: err.message }); });
     } catch (e) {
       console.error('[InzoiCanvas:SW] CHECK_UPDATE sync error:', e);
       sendResponse({ ok: false, error: e.message || 'sync error' });
