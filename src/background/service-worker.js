@@ -28,6 +28,13 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
     return true;
   }
+
+  if (msg.type === 'DOWNLOAD_ASSET') {
+    handleDownloadAsset(msg.url, msg.filename, msg.saveAs)
+      .then(function(downloadId) { sendResponse({ ok: true, result: downloadId }); })
+      .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
+    return true;
+  }
 });
 
 // ─── Blob Fetching ────────────────────────────────────────────────────────────
@@ -140,6 +147,24 @@ async function handleSaveZip(base64Data, filename, saveAs) {
       url: dataUrl,
       filename: safeName,
       saveAs: !!saveAs,
+      conflictAction: 'uniquify',
+    }, function(downloadId) {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(downloadId);
+    });
+  });
+}
+
+async function handleDownloadAsset(url, filename, saveAs) {
+  var safeName = sanitizeFilename(filename);
+  return new Promise(function(resolve, reject) {
+    chrome.downloads.download({
+      url: url,
+      filename: safeName,
+      saveAs: saveAs !== false,
       conflictAction: 'uniquify',
     }, function(downloadId) {
       if (chrome.runtime.lastError) {
