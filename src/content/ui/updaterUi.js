@@ -73,22 +73,20 @@ function updaterRenderFooter(footerEl, info) {
           }
 
           try {
-            chrome.downloads.download({
+            proxySend({
+              type: 'DOWNLOAD_ASSET',
               url: info.assetUrl,
               filename: filename,
               saveAs: true,
-              conflictAction: 'uniquify',
-            }, function(downloadId) {
-              if (chrome.runtime.lastError) {
-                restoreBadge();
-                if (typeof showToast === 'function') {
-                  showToast('Download failed: ' + chrome.runtime.lastError.message, false);
-                }
-                return;
-              }
+            }).then(function() {
               setTimeout(restoreBadge, 2000);
               if (typeof showToast === 'function') {
                 showToast('Download started: ' + filename, true);
+              }
+            }).catch(function(err) {
+              restoreBadge();
+              if (typeof showToast === 'function') {
+                showToast('Download failed: ' + (err.message || 'unknown'), false);
               }
             });
           } catch (e) {

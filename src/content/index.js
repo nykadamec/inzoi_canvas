@@ -52,18 +52,6 @@
   }
 
   // ─── Proxy helpers ──────────────────────────────────────────────────────────
-  function proxySend(msg) {
-    return new Promise(function(res, rej) {
-      try {
-        chrome.runtime.sendMessage(msg, function(resp) {
-          if (!resp) { rej(new Error('Extension context invalidated')); return; }
-          if (!resp.ok) { rej(new Error(resp.error || 'Proxy error')); return; }
-          res(resp.result);
-        });
-      } catch (e) { rej(e); }
-    });
-  }
-
   async function fetchBlobsViaProxy(urls) {
     return proxySend({ type: 'FETCH_BLOBS', urls: urls });
   }

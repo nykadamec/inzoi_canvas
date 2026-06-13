@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Inzoi Canvas Downloader",
-  "version": "0.2.2",
+  "version": "0.2.1",
   "build_date": "2026-06-13",
   "description": "Download Inzoi Canvas creations as ZIP — without running the game",
   "permissions": ["storage", "downloads"],
@@ -33,6 +33,7 @@
         "src/content/ui/fab.js",
         "src/content/ui/panel.js",
         "src/content/ui/updaterCache.js",
+        "src/content/utils/proxy.js",
         "src/content/ui/updaterUi.js",
         "src/content/index.js"
       ],
