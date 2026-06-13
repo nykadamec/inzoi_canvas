@@ -90,28 +90,35 @@ function runUpdateCheck(footerEl, force) {
     '<span style="color:#888;">⏳ Checking for updates…</span>'
   );
 
+  var currentVersion = updaterGetCurrentVersion();
+
   var timeoutMs = 8000;
   var timeoutPromise = new Promise(function(_, rej) {
     setTimeout(function() { rej(new Error('Timeout after ' + timeoutMs + 'ms')); }, timeoutMs);
   });
 
-  Promise.race([
-    proxySend({ type: 'CHECK_UPDATE', force: !!force }),
-    timeoutPromise
-  ])
+  var workPromise = (async function() {
+    if (!force) {
+      var cache = await getCachedCheck();
+      if (cache && cache.data && (Date.now() - cache.ts) < UPDATER_CACHE_TTL_MS) {
+        console.log('[InzoiUpdater] cache hit, latest:', cache.data.latestVersion);
+        return updaterBuildResult(currentVersion, cache.data);
+      }
+    }
+    var release = await fetchLatestRelease();
+    await setCachedCheck(release);
+    return updaterBuildResult(currentVersion, release);
+  })();
+
+  Promise.race([workPromise, timeoutPromise])
     .then(function(info) {
       updaterCheckInProgress = false;
       updaterRenderFooter(footerEl, info);
     })
     .catch(function(err) {
+      console.error('[InzoiUpdater] check failed:', err.message || err);
       updaterCheckInProgress = false;
-      updaterRenderFooter(footerEl, {
-        hasUpdate: false,
-        currentVersion: updaterGetCurrentVersion(),
-        latestVersion: null,
-        downloadUrl: null,
-        error: (err && err.message) ? err.message : 'check failed',
-      });
+      updaterRenderFooter(footerEl, updaterBuildErrorResult(currentVersion, err));
     });
 }
 

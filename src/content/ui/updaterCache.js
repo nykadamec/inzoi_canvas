@@ -1,6 +1,7 @@
-// updater.js
-// Vlastní updater — kontrola verzí přes GitHub Releases API
-// Načítá se přes importScripts() ze service-worker.js
+// updaterCache.js
+// Cache + GitHub Releases API fetch — běží v content scriptu (ne service workeru)
+// Přesunuto z background/updater.js aby se předešlo MV3 service worker termination
+// problému, kdy se sendResponse ztratí a content script visí na "Checking…"
 
 var UPDATER_CACHE_KEY = 'inzoiLastUpdateCheck';
 var UPDATER_CACHE_TTL_MS = 60 * 60 * 1000; // 1h
@@ -19,7 +20,7 @@ function updaterCompareVersions(v1, v2) {
   return 0;
 }
 
-function updaterGetCachedCheck() {
+function getCachedCheck() {
   return new Promise(function(resolve) {
     try {
       chrome.storage.local.get([UPDATER_CACHE_KEY], function(r) {
@@ -30,7 +31,7 @@ function updaterGetCachedCheck() {
   });
 }
 
-function updaterSetCachedCheck(data) {
+function setCachedCheck(data) {
   return new Promise(function(resolve) {
     try {
       var obj = {};
@@ -40,7 +41,7 @@ function updaterSetCachedCheck(data) {
   });
 }
 
-async function updaterFetchLatestRelease() {
+async function fetchLatestRelease() {
   console.log('[InzoiUpdater] fetching', UPDATER_GITHUB_API);
   var resp = await fetch(UPDATER_GITHUB_API, {
     headers: { 'Accept': 'application/vnd.github+json' },
@@ -94,31 +95,3 @@ function updaterBuildErrorResult(currentVersion, err) {
     error: (err && err.message) ? err.message : String(err || 'unknown'),
   };
 }
-
-async function updaterHandleCheckUpdate(force) {
-  var manifest = chrome.runtime.getManifest();
-  var currentVersion = manifest.version || '0.0.0';
-  console.log('[InzoiUpdater] check start — current:', currentVersion, 'force:', force);
-
-  if (!force) {
-    var cache = await updaterGetCachedCheck();
-    if (cache && cache.data && (Date.now() - cache.ts) < UPDATER_CACHE_TTL_MS) {
-      console.log('[InzoiUpdater] cache hit, latest:', cache.data.latestVersion);
-      return updaterBuildResult(currentVersion, cache.data);
-    }
-  }
-
-  try {
-    var release = await updaterFetchLatestRelease();
-    await updaterSetCachedCheck(release);
-    return updaterBuildResult(currentVersion, release);
-  } catch (e) {
-    console.error('[InzoiUpdater] fetch failed:', e.message);
-    return updaterBuildErrorResult(currentVersion, e);
-  }
-}
-
-self.InzoiUpdater = {
-  handleCheckUpdate: updaterHandleCheckUpdate,
-  compareVersions: updaterCompareVersions,
-};

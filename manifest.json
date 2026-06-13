@@ -32,6 +32,7 @@
         "src/content/utils/routeWatcher.js",
         "src/content/ui/fab.js",
         "src/content/ui/panel.js",
+        "src/content/ui/updaterCache.js",
         "src/content/ui/updaterUi.js",
         "src/content/index.js"
       ],
