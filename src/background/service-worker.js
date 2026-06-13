@@ -32,9 +32,19 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
 
   if (msg.type === 'CHECK_UPDATE') {
-    self.InzoiUpdater.handleCheckUpdate(!!msg.force)
-      .then(function(info) { sendResponse({ ok: true, result: info }); })
-      .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
+    try {
+      if (!self.InzoiUpdater || typeof self.InzoiUpdater.handleCheckUpdate !== 'function') {
+        console.error('[InzoiCanvas:SW] InzoiUpdater not loaded (importScripts failed?)');
+        sendResponse({ ok: false, error: 'Updater module not loaded' });
+        return true;
+      }
+      self.InzoiUpdater.handleCheckUpdate(!!msg.force)
+        .then(function(info) { sendResponse({ ok: true, result: info }); })
+        .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
+    } catch (e) {
+      console.error('[InzoiCanvas:SW] CHECK_UPDATE sync error:', e);
+      sendResponse({ ok: false, error: e.message || 'sync error' });
+    }
     return true;
   }
 });

@@ -41,9 +41,11 @@ function updaterSetCachedCheck(data) {
 }
 
 async function updaterFetchLatestRelease() {
+  console.log('[InzoiUpdater] fetching', UPDATER_GITHUB_API);
   var resp = await fetch(UPDATER_GITHUB_API, {
     headers: { 'Accept': 'application/vnd.github+json' },
   });
+  console.log('[InzoiUpdater] response status:', resp.status);
   if (!resp.ok) throw new Error('GitHub API HTTP ' + resp.status);
   var json = await resp.json();
   var version = String(json.tag_name || '').replace(/^v/i, '') || null;
@@ -96,10 +98,12 @@ function updaterBuildErrorResult(currentVersion, err) {
 async function updaterHandleCheckUpdate(force) {
   var manifest = chrome.runtime.getManifest();
   var currentVersion = manifest.version || '0.0.0';
+  console.log('[InzoiUpdater] check start — current:', currentVersion, 'force:', force);
 
   if (!force) {
     var cache = await updaterGetCachedCheck();
     if (cache && cache.data && (Date.now() - cache.ts) < UPDATER_CACHE_TTL_MS) {
+      console.log('[InzoiUpdater] cache hit, latest:', cache.data.latestVersion);
       return updaterBuildResult(currentVersion, cache.data);
     }
   }
@@ -109,6 +113,7 @@ async function updaterHandleCheckUpdate(force) {
     await updaterSetCachedCheck(release);
     return updaterBuildResult(currentVersion, release);
   } catch (e) {
+    console.error('[InzoiUpdater] fetch failed:', e.message);
     return updaterBuildErrorResult(currentVersion, e);
   }
 }

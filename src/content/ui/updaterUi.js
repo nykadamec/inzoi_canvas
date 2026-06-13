@@ -84,12 +84,21 @@ function wireCheckButton(footerEl) {
 
 function runUpdateCheck(footerEl, force) {
   if (!footerEl) return;
+  console.log('[InzoiUpdater:UI] runUpdateCheck force:', force);
   updaterCheckInProgress = true;
   updaterSetFooterText(footerEl,
     '<span style="color:#888;">⏳ Checking for updates…</span>'
   );
 
-  proxySend({ type: 'CHECK_UPDATE', force: !!force })
+  var timeoutMs = 8000;
+  var timeoutPromise = new Promise(function(_, rej) {
+    setTimeout(function() { rej(new Error('Timeout after ' + timeoutMs + 'ms')); }, timeoutMs);
+  });
+
+  Promise.race([
+    proxySend({ type: 'CHECK_UPDATE', force: !!force }),
+    timeoutPromise
+  ])
     .then(function(info) {
       updaterCheckInProgress = false;
       updaterRenderFooter(footerEl, info);
@@ -113,7 +122,11 @@ function runUpdateCheck(footerEl, force) {
  * @param {HTMLElement} footerEl — #inzoi-version-footer element
  */
 function initUpdaterUi(footerEl) {
-  if (!footerEl) return;
+  if (!footerEl) {
+    console.warn('[InzoiUpdater:UI] footer element missing — skipping init');
+    return;
+  }
+  console.log('[InzoiUpdater:UI] init start');
   updaterFooterEl = footerEl;
   runUpdateCheck(footerEl, false);
 }
