@@ -2,6 +2,8 @@
 // Background service worker — CORS-free proxy for downloading blobs + mod info
 // ArrayBuffer → Base64 → content script → decode → Blob
 
+importScripts('updater.js');
+
 var CF_API_KEY = '$2a$10$dcQ6ahjTz05GGWgZbr7zeuCRycH/0yj1O5SIlLDlHVzGSXXJIM70C';
 var CF_BASE_URL = 'https://api.curseforge.com/v1';
 var CF_GAME_ID = '88849'; // inZOI game ID on CurseForge
@@ -30,7 +32,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
 
   if (msg.type === 'CHECK_UPDATE') {
-    handleCheckUpdate()
+    self.InzoiUpdater.handleCheckUpdate(!!msg.force)
       .then(function(info) { sendResponse({ ok: true, result: info }); })
       .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
     return true;
@@ -127,70 +129,13 @@ function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 // ─── ZIP Save via chrome.downloads ───────────────────────────────────────────
 
 /**
- * Checks for a new version.
- * @returns {Promise<{hasUpdate: boolean, currentVersion: string, newVersion: string, downloadUrl: string}>}
- */
-async function handleCheckUpdate() {
-  var UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/nykadamec/inzoi_canvas/main/updateManifest.json?ref=main';
-  var manifest = chrome.runtime.getManifest();
-  var currentVersion = manifest.version || '0.0.0';
-
-  try {
-    var resp = await fetch(UPDATE_MANIFEST_URL + '?t=' + Date.now());
-    if (!resp.ok) throw new Error('Failed to fetch update manifest');
-    var updateInfo = await resp.json();
-    var newVersion = updateInfo.version || '0.0.0';
-    var hasUpdate = compareVersions(newVersion, currentVersion) > 0;
-    return {
-      hasUpdate: hasUpdate,
-      currentVersion: currentVersion,
-      newVersion: newVersion,
-      downloadUrl: updateInfo.downloadUrl || null,
-    };
-  } catch (e) {
-    return {
-      hasUpdate: false,
-      currentVersion: currentVersion,
-      newVersion: null,
-      downloadUrl: null,
-    };
-  }
-}
-
-/**
- * Compares two version strings in "1.2.3" format.
- * Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
- */
-function compareVersions(v1, v2) {
-  var parts1 = v1.split('.').map(Number);
-  var parts2 = v2.split('.').map(Number);
-  for (var i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-    var p1 = parts1[i] || 0;
-    var p2 = parts2[i] || 0;
-    if (p1 < p2) return -1;
-    if (p1 > p2) return 1;
-  }
-  return 0;
-}
-
-/**
- * Saves ZIP via chrome.downloads.download()
- * @param {string} base64Data — Base64 encoded ZIP data (no data URL prefix)
- * @param {string} filename — suggested filename
- * @param {boolean} saveAs — whether to show "Save As" dialog
- * @returns {Promise<number>} downloadId
- */
-/**
  * Sanitizes a filename to prevent path traversal and invalid characters.
  * Only allows safe filename characters, replaces path separators with dashes.
  */
 function sanitizeFilename(name) {
   if (!name || typeof name !== 'string') return 'canvas_download';
-  // Remove path traversal attempts and path separators
   var sanitized = name.replace(/\.\./g, '').replace(/[\/\\]/g, '-');
-  // Remove any remaining control chars, null bytes, or other dangerous chars
   sanitized = sanitized.replace(/[\x00-\x1f\x7f<>"|?*:]/g, '');
-  // Trim leading/trailing dots, spaces, dashes
   sanitized = sanitized.replace(/^[\s.\-]+|[\s.\-]+$/g, '');
   return sanitized || 'canvas_download';
 }

@@ -176,17 +176,12 @@ function updateModsInPanelFromPage() {
 
   var mods = scrapeModsFromPage();
 
-  // Always update count even if no mods found
-  if (countEl) {
-    countEl.textContent = '🎯 Required mods' + (mods && mods.length > 0 ? ' (' + mods.length + ')' : '');
-  }
-
   if (!mods || mods.length === 0) {
-    body.style.display = 'none';
-    arrowEl.textContent = '▶';
+    section.style.display = 'none';
     return;
   }
 
+  section.style.display = '';
   modsCache._rawModInfo = mods.map(function(m) { return { ugc_id: null, author: m.author }; });
 
   var rows = mods.map(function(m, i) {
@@ -423,44 +418,24 @@ function updateModsInPanelFromPage() {
     }).catch(function() {});
   }
 
-  // ─── Version footer ──────────────────────────────────────────────────────────
-  function setVersionFooter() {
+  // ─── Version footer + updater UI ────────────────────────────────────────────
+  function initFooterAndUpdater() {
     var el = document.getElementById('inzoi-version-footer');
     if (!el) return;
     try {
       var manifest = chrome.runtime.getManifest();
       var version = manifest.version || '0.0.0';
-      var buildDate = manifest.build_date || '2026-06-06';
-      el.textContent = '\u2713 v' + version + ' \u00b7 ' + buildDate;
+      el.textContent = '\u2713 v' + version;
     } catch (e) {
-      el.textContent = '\u2713 v0.1.1 \u00b7 2026-06-06';
+      el.textContent = '\u2713 v0.2.0';
     }
-  }
-
-  // ─── Update checker ─────────────────────────────────────────────────────────
-  function checkForUpdate() {
-    proxySend({ type: 'CHECK_UPDATE' }).then(function(info) {
-      if (info.hasUpdate) {
-        var el = document.getElementById('inzoi-version-footer');
-        if (el) {
-          el.textContent = '\u21bb Install New Update';
-          el.style.color = '#60a5fa';
-          el.style.cursor = 'pointer';
-          el.style.fontWeight = '600';
-          el.title = 'Click to download update';
-          el.onclick = function() {
-            if (info.downloadUrl) window.open(info.downloadUrl, '_blank');
-          };
-        }
-      }
-    }).catch(function() {});
+    initUpdaterUi(el);
   }
 
   // ─── Bootstrap ─────────────────────────────────────────────────────────────
   installUiEventGuard();
   installRouteWatcher(syncUiForCurrentRoute);
   syncUiForCurrentRoute();
-  setVersionFooter();
-  checkForUpdate();
+  initFooterAndUpdater();
   console.log('[InzoiCanvas] Ready');
 })();

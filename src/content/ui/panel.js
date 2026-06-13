@@ -150,8 +150,16 @@ function createPanel(opts, onDownload, onModsExpand) {
         '</div>',
       '</div>',
 
-      // Download button
-      '<button id="inzoi-dl-btn" style="width:100%;padding:16px 20px;background:linear-gradient(135deg,#e94560,#c73659);border:none;border-radius:12px;color:white;cursor:pointer;font-weight:700;font-size:15px;letter-spacing:.3px;margin-bottom:8px;box-shadow:0 4px 14px rgba(233,69,96,.35);">📦 Download ZIP</button>',
+      // Download button (disabled when not logged in)
+      '<button id="inzoi-dl-btn" ' + (isLoggedIn ? '' : 'disabled ') +
+        'style="width:100%;padding:16px 20px;' +
+        'background:' + (isLoggedIn ? 'linear-gradient(135deg,#e94560,#c73659)' : 'linear-gradient(135deg,#555,#333)') + ';' +
+        'border:none;border-radius:12px;color:white;' +
+        'cursor:' + (isLoggedIn ? 'pointer' : 'not-allowed') + ';' +
+        'font-weight:700;font-size:15px;letter-spacing:.3px;margin-bottom:8px;' +
+        'box-shadow:' + (isLoggedIn ? '0 4px 14px rgba(233,69,96,.35)' : 'none') + ';' +
+        'opacity:' + (isLoggedIn ? '1' : '0.55') + ';">' +
+        '📦 Download ZIP</button>',
 
       // Save location
       '<div style="margin-bottom:12px;font-size:10px;color:#555;padding:0 2px;text-align:center;">',
@@ -235,7 +243,30 @@ function createPanel(opts, onDownload, onModsExpand) {
   if (isCreationPage) {
     var btn = document.getElementById('inzoi-dl-btn');
     if (btn) {
-      btn.onclick = function(e) { onDownload && onDownload(e); };
+      btn.onclick = function(e) {
+        if (!isLoggedIn) return;
+        onDownload && onDownload(e);
+      };
+
+      if (!isLoggedIn) {
+        btn.addEventListener('mouseenter', function(e) {
+          showTooltip('You must be logged in to canvas.playinzoi.com to download', e);
+        });
+        btn.addEventListener('mousemove', function(e) {
+          if (tooltipEl) {
+            var x = e.clientX;
+            var y = e.clientY;
+            var tw = tooltipEl.offsetWidth;
+            var th = tooltipEl.offsetHeight;
+            if (y + th + 16 > window.innerHeight) y = y - th - 12;
+            else y = y + 14;
+            if (x + tw + 16 > window.innerWidth) x = window.innerWidth - tw - 16;
+            tooltipEl.style.left = x + 'px';
+            tooltipEl.style.top = y + 'px';
+          }
+        });
+        btn.addEventListener('mouseleave', function() { hideTooltip(); });
+      }
     }
   }
 
@@ -267,16 +298,10 @@ function createPanel(opts, onDownload, onModsExpand) {
     };
   }
 
-  // Version footer
+  // Version footer (placeholder, will be replaced by initFooterAndUpdater in index.js)
   var footerEl = document.getElementById('inzoi-version-footer');
   if (footerEl) {
-    try {
-      var mf = chrome.runtime.getManifest();
-      var buildDate = '2026-06-06';
-      footerEl.textContent = '\u2713 v0.1.1 \u00b7 ' + buildDate;
-    } catch (e) {
-      footerEl.textContent = '\u2713 v0.1.1 \u00b7 2026-06-06';
-    }
+    footerEl.textContent = '';
   }
 }
 
