@@ -42,11 +42,13 @@ function updaterRenderFooter(footerEl, info) {
   }
 
   if (info.hasUpdate && info.latestVersion) {
-    var openUrl = info.downloadUrl || ('https://github.com/nykadamec/inzoi_canvas/releases/tag/v' + info.latestVersion);
+    var fallbackUrl = info.downloadUrl || ('https://github.com/nykadamec/inzoi_canvas/releases/tag/v' + info.latestVersion);
+    var hasAsset = !!info.assetUrl;
+
     updaterSetFooterText(footerEl,
       '<span id="inzoi-update-badge" ' +
         'style="color:#60a5fa;cursor:pointer;font-weight:600;text-decoration:underline;" ' +
-        'title="Click to open release page">' +
+        'title="' + (hasAsset ? 'Click to download v' + info.latestVersion : 'Click to open release page (no asset attached)') + '">' +
         '↻ Install v' + info.latestVersion +
       '</span> · ' +
       '<span style="color:#555;">current v' + currentVersion + '</span>'
@@ -54,7 +56,50 @@ function updaterRenderFooter(footerEl, info) {
     var badge = document.getElementById('inzoi-update-badge');
     if (badge) {
       badge.addEventListener('click', function() {
-        window.open(openUrl, '_blank');
+        if (hasAsset) {
+          var filename = 'inzoi-canvas-v' + info.latestVersion + '.zip';
+          var origHtml = badge.innerHTML;
+          badge.style.opacity = '0.5';
+          badge.style.cursor = 'wait';
+          badge.textContent = '⏳ Downloading v' + info.latestVersion + '…';
+
+          function restoreBadge() {
+            var current = document.getElementById('inzoi-update-badge');
+            if (current) {
+              current.innerHTML = origHtml;
+              current.style.opacity = '';
+              current.style.cursor = '';
+            }
+          }
+
+          try {
+            chrome.downloads.download({
+              url: info.assetUrl,
+              filename: filename,
+              saveAs: true,
+              conflictAction: 'uniquify',
+            }, function(downloadId) {
+              if (chrome.runtime.lastError) {
+                restoreBadge();
+                if (typeof showToast === 'function') {
+                  showToast('Download failed: ' + chrome.runtime.lastError.message, false);
+                }
+                return;
+              }
+              setTimeout(restoreBadge, 2000);
+              if (typeof showToast === 'function') {
+                showToast('Download started: ' + filename, true);
+              }
+            });
+          } catch (e) {
+            restoreBadge();
+            if (typeof showToast === 'function') {
+              showToast('Download failed: ' + e.message, false);
+            }
+          }
+        } else {
+          window.open(fallbackUrl, '_blank');
+        }
       });
     }
     return;
