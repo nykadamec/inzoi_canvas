@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Inzoi Canvas Downloader",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "build_date": "2026-06-13",
   "description": "Download Inzoi Canvas creations as ZIP — without running the game",
   "permissions": ["storage", "downloads"],
