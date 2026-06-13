@@ -58,7 +58,7 @@
         chrome.runtime.sendMessage(msg, function(resp) {
           if (!resp) { rej(new Error('Extension context invalidated')); return; }
           if (!resp.ok) { rej(new Error(resp.error || 'Proxy error')); return; }
-          res(resp.results);
+          res(resp.result);
         });
       } catch (e) { rej(e); }
     });
@@ -415,27 +415,22 @@ function updateModsInPanelFromPage() {
       updateCanvasNameInPanel();
       // Small delay to let dynamic content settle
       setTimeout(function() { updateModsInPanelFromPage(); }, 300);
+      // Init updater UI (lazy + manual check) now that footer exists
+      initUpdaterUi(document.getElementById('inzoi-version-footer'));
     }).catch(function() {});
   }
 
-  // ─── Version footer + updater UI ────────────────────────────────────────────
-  function initFooterAndUpdater() {
+  // ─── Version footer (placeholder — updater init in openPanel) ──────────────
+  function initVersionFooter() {
     var el = document.getElementById('inzoi-version-footer');
     if (!el) return;
-    try {
-      var manifest = chrome.runtime.getManifest();
-      var version = manifest.version || '0.0.0';
-      el.textContent = '\u2713 v' + version;
-    } catch (e) {
-      el.textContent = '\u2713 v0.2.0';
-    }
-    initUpdaterUi(el);
+    el.textContent = '';
   }
 
   // ─── Bootstrap ─────────────────────────────────────────────────────────────
   installUiEventGuard();
   installRouteWatcher(syncUiForCurrentRoute);
   syncUiForCurrentRoute();
-  initFooterAndUpdater();
+  initVersionFooter();
   console.log('[InzoiCanvas] Ready');
 })();

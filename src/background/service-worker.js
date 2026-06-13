@@ -12,21 +12,21 @@ var CF_RATE_LIMIT_MS = 200;
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.type === 'FETCH_BLOBS') {
     handleFetchBlobs(msg.urls)
-      .then(function(results) { sendResponse({ ok: true, results: results }); })
+      .then(function(results) { sendResponse({ ok: true, result: results }); })
       .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
     return true;
   }
 
   if (msg.type === 'FETCH_MOD_INFO') {
     handleFetchModInfo(msg.mods)
-      .then(function(results) { sendResponse({ ok: true, results: results }); })
+      .then(function(results) { sendResponse({ ok: true, result: results }); })
       .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
     return true;
   }
 
   if (msg.type === 'SAVE_ZIP') {
     handleSaveZip(msg.data, msg.filename, msg.saveAs)
-      .then(function(downloadId) { sendResponse({ ok: true, downloadId: downloadId }); })
+      .then(function(downloadId) { sendResponse({ ok: true, result: downloadId }); })
       .catch(function(err) { sendResponse({ ok: false, error: err.message }); });
     return true;
   }

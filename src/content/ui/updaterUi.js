@@ -5,6 +5,16 @@ var updaterFooterEl = null;
 var updaterCheckBtnEl = null;
 var updaterCheckInProgress = false;
 
+function updaterGetCurrentVersion() {
+  try {
+    var manifest = (chrome && chrome.runtime && chrome.runtime.getManifest)
+      ? chrome.runtime.getManifest() : {};
+    return manifest.version || '0.0.0';
+  } catch (e) {
+    return '0.0.0';
+  }
+}
+
 function updaterSetFooterText(footerEl, html) {
   if (!footerEl) return;
   footerEl.innerHTML = html;
@@ -88,7 +98,7 @@ function runUpdateCheck(footerEl, force) {
       updaterCheckInProgress = false;
       updaterRenderFooter(footerEl, {
         hasUpdate: false,
-        currentVersion: '0.0.0',
+        currentVersion: updaterGetCurrentVersion(),
         latestVersion: null,
         downloadUrl: null,
         error: (err && err.message) ? err.message : 'check failed',
