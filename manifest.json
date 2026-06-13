@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Inzoi Canvas Downloader",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "build_date": "2026-06-06",
   "description": "Download Inzoi Canvas creations as ZIP — without running the game",
   "permissions": ["storage", "downloads"],
   "host_permissions": [
@@ -23,6 +24,7 @@
         "src/core/rpcClient.js",
         "src/core/canvasDownloader.js",
         "src/core/zipBuilder.js",
+        "src/core/version.js",
         "src/core/categoryResolver.js",
         "src/storage/settingsStore.js",
         "src/content/utils/urlMatcher.js",

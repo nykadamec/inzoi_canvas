@@ -272,10 +272,10 @@ function createPanel(opts, onDownload, onModsExpand) {
   if (footerEl) {
     try {
       var mf = chrome.runtime.getManifest();
-      var buildDate = '2026-04-23';
-      footerEl.textContent = '\u2713 Latest version \u00b7 ' + buildDate;
+      var buildDate = '2026-06-06';
+      footerEl.textContent = '\u2713 v0.1.1 \u00b7 ' + buildDate;
     } catch (e) {
-      footerEl.textContent = 'version 0.1.0 \u00b7 2026-04-23';
+      footerEl.textContent = '\u2713 v0.1.1 \u00b7 2026-06-06';
     }
   }
 }

@@ -429,10 +429,11 @@ function updateModsInPanelFromPage() {
     if (!el) return;
     try {
       var manifest = chrome.runtime.getManifest();
-      var version = manifest.version || '1.0.0';
-      el.textContent = 'version ' + version;
+      var version = manifest.version || '0.0.0';
+      var buildDate = manifest.build_date || '2026-06-06';
+      el.textContent = '\u2713 v' + version + ' \u00b7 ' + buildDate;
     } catch (e) {
-      el.textContent = 'version 0.1.0';
+      el.textContent = '\u2713 v0.1.1 \u00b7 2026-06-06';
     }
   }
 
