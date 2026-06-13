@@ -1,5 +1,5 @@
 (function (root) {
-  var APP_VERSION = '0.2.1';
+  var APP_VERSION = '0.2.2';
   var BUILD_DATE = '2026-06-13';
   var FALLBACK = '\u2713 v' + APP_VERSION + ' \u00b7 ' + BUILD_DATE;
 
