@@ -1,6 +1,6 @@
 (function (root) {
-  var APP_VERSION = '0.2.2';
-  var BUILD_DATE = '2026-06-13';
+  var APP_VERSION = '0.2.3';
+  var BUILD_DATE = '2026-06-14';
   var FALLBACK = '\u2713 v' + APP_VERSION + ' \u00b7 ' + BUILD_DATE;
 
   function renderFooter(el) {
